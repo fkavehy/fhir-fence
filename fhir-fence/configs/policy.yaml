@@ -1,0 +1,50 @@
+# FHIR-Fence — task policy (notebook 02).
+# Deny-by-default: a resource type not in authorized_types, and a patient field not
+# marked RETAIN, is excluded. This declarative table is the method's contribution made
+# concrete. Field decisions: RETAIN | ABSTRACT | REDACT.
+
+# Patient fields are identical across tasks here, but kept per-task so they can diverge.
+_default_patient_fields: &default_fields
+  gender: RETAIN
+  birthDate: ABSTRACT
+  name: REDACT
+  telecom: REDACT
+  address: REDACT
+  identifier: REDACT
+  maritalStatus: REDACT
+  race_ethnicity: REDACT
+
+tasks:
+  T1:
+    name: Medication reconciliation
+    question: >-
+      List every medication ordered or administered during the specified encounter.
+      Give one medication per line, using the medication name or code exactly as it
+      appears in the record.
+    authorized_types: [Patient, Encounter, MedicationRequest, MedicationAdministration, Medication]
+    patient_fields: *default_fields
+
+  T2:
+    name: Condition summary
+    question: >-
+      List every condition or diagnosis documented for the specified encounter.
+      Give one condition per line, exactly as recorded.
+    authorized_types: [Patient, Encounter, Condition]
+    patient_fields: *default_fields
+
+  T3:
+    name: Lab / vital lookup
+    # {target} is filled per-case from the ground-truth target observation.
+    question: >-
+      Report the most recent recorded value of {target} during the specified encounter,
+      including its unit.
+    authorized_types: [Patient, Encounter, Observation]
+    patient_fields: *default_fields
+
+# T3 target selection (notebook 02): whitelist of observations with clean names and
+# scalar values; panels and narrative notes are excluded so the answer is unambiguous.
+t3_target_whitelist:
+  [Glucose, Potassium, Sodium, Creatinine, Hematocrit, Hemoglobin, Chloride,
+   "Urea Nitrogen", "Platelet Count", "Heart rate", "Respiratory rate",
+   "Oxygen saturation in Arterial blood", "Body temperature"]
+t3_exclude_substrings: [panel, NCP, assessment, Narrative, "Chief complaint"]
