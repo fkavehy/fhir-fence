@@ -59,7 +59,8 @@ task must keep.
 
 ## Steps
 
-![FHIR-Fence method overview](FHIR-Fence Steps.png)
+![FHIR-Fence method overview](FHIRFenceSteps.png)
+
 **Scoring.** Each node `v` is scored for a task `q`:
 
 ```
