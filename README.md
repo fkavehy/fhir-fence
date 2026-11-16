@@ -25,7 +25,7 @@ the model and key yourself — nothing is hardcoded.
 
 ## Contents
 - [What the method does](#what-the-method-does)
-- [Architecture](#architecture)
+- [Steps](#steps)
 - [The five strategies (B0–B4)](#the-five-strategies-b0b4)
 - [Results](#results)
 - [User manual](#user-manual)
@@ -57,118 +57,9 @@ task must keep.
 
 ---
 
-## Architecture
+## Steps
 
-```mermaid
-flowchart TB
-
-subgraph DATA["1 - Data and cohort (offline, no LLM)"]
-    direction TB
-    D0["MIMIC-IV FHIR Demo v2.1.0<br/>100 patients - ODbL"]
-    D1["Resource index<br/>reference-integrity check"]
-    D2["Cohort selection (seed 20260812)<br/>stratified sampling"]
-    D3["40 patients selected<br/>per-profile caps applied"]
-    D0 --> D1 --> D2 --> D3
-end
-
-subgraph GRAPHB["2 - Patient graph construction"]
-    direction TB
-    G0["Per-patient FHIR graph G = (V, E, phi)"]
-    G1["Nodes: Patient root - resources - 7 canary attribute nodes"]
-    G2["Edges: BELONGS_TO_PATIENT - PART_OF_ENCOUNTER<br/>MEDICATION_FOR - REFERENCES - TEMPORALLY_RELATED"]
-    G3["Sensitivity class per node<br/>direct_id 1.0 - quasi 0.7 - sensitive 0.6 - routine 0.2"]
-    G4["Inject 7 synthetic canaries into Patient"]
-    G0 --> G1 --> G2 --> G3 --> G4
-end
-
-subgraph TASKP["3 - Task model and policy"]
-    direction TB
-    T0["Focal encounter per patient"]
-    T1["31 patients eligible -> 93 task cases"]
-    T2["Task q = (type, focal encounter, target)"]
-    P0["Deny-by-default policy: authorized resource types"]
-    P1["Field map: RETAIN - ABSTRACT - REDACT"]
-    T0 --> T1 --> T2
-    T2 --> P0
-    T2 --> P1
-end
-
-subgraph SCOREN["4 - Node scoring and selection"]
-    direction TB
-    S0["Score(v,q) = alpha*R_pol + beta*R_gr - lambda*S*"]
-    S1["R_pol = 1 if resource type authorized"]
-    S2["R_gr: 1.0 focal/member - gamma one-hop - 0 else<br/>(alpha=0.6 beta=0.6 gamma=0.7 lambda=1.0)"]
-    S3["S*: authorized type -> 0 (task_required override)"]
-    S4["Retain v iff Score >= tau (tau=0.75)"]
-    S0 --> S1 --> S2 --> S3 --> S4
-end
-
-subgraph ENF["5 - Two-level enforcement and serialization"]
-    direction TB
-    E0["Level 1 - node selection: which resources reach the model"]
-    E1["Level 2 - field transformation: identifiers inside Patient"]
-    E2["Serialize to task-specific context (focal-encounter labelled)"]
-    E0 --> E1 --> E2
-end
-
-subgraph DEF["Defense conditions from the same graph"]
-    direction LR
-    B0["B0 Full context"]
-    B1["B1 + privacy prompt"]
-    B2["B2 identifier redaction"]
-    B3["B3 task policy only"]
-    B4["B4 FHIR-Fence"]
-end
-
-subgraph VER["6 - Offline verification (before any API call)"]
-    direction TB
-    V0["Channel closure: 0/7 registered canaries in B3/B4"]
-    V1["Ground-truth coverage: 93/93 cases"]
-    V2["Independent PHI audit (Presidio): spans -77%"]
-end
-
-subgraph AGENT["7 - Attacked agent"]
-    direction TB
-    A0["LLM (configurable - provider + model set in config)"]
-    AT["Attacks: A0 clean - A1 direct - A2 indirect injection"]
-    AR["Checkpointed grid: 93 cases x 3 attacks x 5 defenses = 1395 calls"]
-    A0 --> AR
-    AT --> AR
-end
-
-subgraph EVAL["8 - Evaluation (exact match, no LLM judge)"]
-    direction TB
-    R0["ASR: B3/B4 = 0.000 both channels"]
-    R1["ALR: leaked / exposed per field"]
-    R2["Utility: recall; B4 = 0.821, no detectable loss vs full"]
-    R3["CRR: B4 median 79.1% reduction"]
-    R4["Paired bootstrap (patient-level, 2000 resamples)"]
-end
-
-DATA --> GRAPHB --> TASKP --> SCOREN --> ENF
-ENF --> DEF
-DEF --> VER
-VER --> AGENT --> EVAL
-
-classDef data fill:#eef4fb,stroke:#4C72B0,color:#000;
-classDef graphc fill:#f0f7ee,stroke:#55A868,color:#000;
-classDef task fill:#fbf4ec,stroke:#DD8452,color:#000;
-classDef score fill:#f4f0fa,stroke:#8172B3,color:#000;
-classDef enf fill:#fdeff2,stroke:#C44E52,color:#000;
-classDef verify fill:#eefaf4,stroke:#2CA02C,color:#000;
-classDef term fill:#eef2f7,stroke:#33415c,color:#000;
-
-class D0,D1,D2,D3 data;
-class G0,G1,G2,G3,G4 graphc;
-class T0,T1,T2,P0,P1 task;
-class S0,S1,S2,S3,S4 score;
-class E0,E1,E2 enf;
-class B0,B1,B2,B3,B4 term;
-class V0,V1,V2 verify;
-class A0,AT,AR term;
-class R0,R1,R2,R3,R4 term;
-```
-
+![FHIR-Fence method overview](FHIR-Fence Steps.png)
 **Scoring.** Each node `v` is scored for a task `q`:
 
 ```
